@@ -1,0 +1,134 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: video_rag
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama
+    # Host port is configurable to avoid clashing with a native Ollama already on 11434.
+    # Containers always reach this service internally at http://ollama:11434 regardless of the host port.
+    ports:
+      - '${OLLAMA_HOST_PORT:-11435}:11434'
+    volumes:
+      - ollama_data:/root/.ollama
+    # NVIDIA GPU (optional):
+    #   docker compose up with NVIDIA Container Toolkit installed, then add under this service:
+    #   deploy:
+    #     resources:
+    #       reservations:
+    #         devices:
+    #           - driver: nvidia
+    #             count: all
+    #             capabilities: [gpu]
+    # Or run: docker run -d --gpus=all -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+    healthcheck:
+      test: ['CMD-SHELL', 'ollama list || exit 1']
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  api:
+    build:
+      context: .
+      target: runtime
+    command: ['api']
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/video_rag
+      REDIS_URL: redis://redis:6379
+      LOCAL_STORAGE_ROOT: /data/uploads
+      AUDIO_TEMP_DIR: /data/uploads/tmp
+      STORAGE_PROVIDER: local
+      TYPEORM_SYNC: 'true'
+      CORS_ORIGIN: http://localhost:8080
+      OLLAMA_BASE_URL: http://ollama:11434
+      CHAT_PROVIDER: ollama
+      EMBEDDING_PROVIDER: ollama
+      TRANSCRIPTION_PROVIDER: whispercpp
+    volumes:
+      - uploads_data:/data/uploads
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      target: runtime
+    command: ['worker']
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/video_rag
+      REDIS_URL: redis://redis:6379
+      LOCAL_STORAGE_ROOT: /data/uploads
+      AUDIO_TEMP_DIR: /data/uploads/tmp
+      STORAGE_PROVIDER: local
+      TYPEORM_SYNC: 'true'
+      WORKER_CONCURRENCY: 2
+      OLLAMA_BASE_URL: http://ollama:11434
+      CHAT_PROVIDER: ollama
+      EMBEDDING_PROVIDER: ollama
+      TRANSCRIPTION_PROVIDER: whispercpp
+      # whisper.cpp is baked into the runtime image (see Dockerfile "whisper" stage).
+      # Set explicitly here so env_file (.env) cannot override the in-image defaults.
+      WHISPER_BIN_PATH: /opt/whisper/whisper-cli
+      WHISPER_MODEL_PATH: /opt/whisper/models/ggml-base.bin
+    volumes:
+      - uploads_data:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      api:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - '8080:80'
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  uploads_data:
+  ollama_data:

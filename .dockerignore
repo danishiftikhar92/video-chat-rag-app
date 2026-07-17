@@ -1,0 +1,14 @@
+node_modules
+.pnpm-store
+.env
+.env.*
+!.env.example
+dist
+build
+coverage
+.tmp
+uploads
+data
+*.log
+.turbo
+apps/api/prisma
