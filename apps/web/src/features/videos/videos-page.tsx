@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LayoutGrid, MessageSquare, Plus, Table as TableIcon, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { VideoDto } from '@video-rag/shared';
+import type { VideoDto } from '@/types/api';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';

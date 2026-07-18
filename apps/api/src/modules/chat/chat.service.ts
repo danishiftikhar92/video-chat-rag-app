@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { type ChatRequest } from '@video-rag/shared';
-import { ChatMessage, ChatRole, ChatSession } from '@video-rag/database';
+import { type ChatRequest } from '../../shared';
+import { ChatMessage, ChatRole, ChatSession } from '../../database';
 import { Repository } from 'typeorm';
 import { AgentService } from '../agent/agent.service';
 
@@ -58,7 +58,11 @@ export class ChatService {
       })
     );
 
-    const result = await this.agentService.answerQuestion(payload.videoIds, payload.query);
+    const result = await this.agentService.answerQuestion(
+      payload.videoIds,
+      payload.query,
+      payload.model
+    );
 
     await this.messageRepo.save(
       this.messageRepo.create({
@@ -76,6 +80,7 @@ export class ChatService {
       answer: result.answer,
       citations: result.citations,
       confidence: result.confidence,
+      modelUsed: result.modelUsed,
       messages: messages.map((message) => ({
         ...message,
         citations: message.citationsJson

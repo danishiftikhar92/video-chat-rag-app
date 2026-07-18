@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
-import { chatRequestSchema, createSessionSchema, type ChatRequest } from '@video-rag/shared';
+import { chatRequestSchema, createSessionSchema, type ChatRequest } from '../../shared';
 import { getEnv } from '../../config/env';
 import { InMemoryRateLimitService } from '../../common/rate-limit.service';
 import { ChatService } from './chat.service';

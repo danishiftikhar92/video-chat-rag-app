@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { TranscriptChunk } from '@video-rag/database';
-import { createOllamaClientFromEnv, toPgVectorLiteral } from '@video-rag/shared';
+import { TranscriptChunk } from '../../database';
+import { createOllamaClientFromEnv, toPgVectorLiteral } from '../../shared';
 import { Repository } from 'typeorm';
 import { getEnv } from '../../config/env';
 

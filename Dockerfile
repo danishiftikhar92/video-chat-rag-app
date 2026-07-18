@@ -6,7 +6,6 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* turbo.json tsconfig.base.json ./
-COPY packages ./packages
 COPY apps ./apps
 RUN pnpm install --frozen-lockfile || pnpm install
 
@@ -18,11 +17,21 @@ RUN pnpm build
 # Build a self-contained whisper.cpp CLI + bundle a base model.
 FROM debian:bookworm-slim AS whisper
 ARG WHISPER_MODEL=base
+# Pin a release so ARM Docker builds are reproducible (master can break).
+ARG WHISPER_CPP_REF=v1.9.1
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git cmake build-essential ca-certificates curl wget \
   && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 https://github.com/ggerganov/whisper.cpp /opt/whisper-src \
-  && cmake -S /opt/whisper-src -B /opt/whisper-src/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+# On aarch64, GGML_NATIVE detects +fp16fml but omits +fp16, which breaks vfmaq_f16 / vaddq_f16.
+# Force an arch that includes +fp16. On other arches, just disable native tuning for portable images.
+RUN git clone --depth 1 --branch "${WHISPER_CPP_REF}" https://github.com/ggerganov/whisper.cpp /opt/whisper-src \
+  && ARCH="$(uname -m)" \
+  && if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+       CMAKE_EXTRA="-DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8.2-a+fp16"; \
+     else \
+       CMAKE_EXTRA="-DGGML_NATIVE=OFF"; \
+     fi \
+  && cmake -S /opt/whisper-src -B /opt/whisper-src/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF ${CMAKE_EXTRA} \
   && cmake --build /opt/whisper-src/build -j --config Release --target whisper-cli \
   && bash /opt/whisper-src/models/download-ggml-model.sh ${WHISPER_MODEL} \
   && mkdir -p /opt/whisper/models \

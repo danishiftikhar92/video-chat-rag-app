@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { RotateCcw } from 'lucide-react';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,9 +32,25 @@ export function SettingsPage() {
   const setPageSize = useUiStore((state) => state.setPageSize);
   const apiBaseUrl = useUiStore((state) => state.apiBaseUrl);
   const setApiBaseUrl = useUiStore((state) => state.setApiBaseUrl);
+  const defaultChatModel = useUiStore((state) => state.defaultChatModel);
+  const setDefaultChatModel = useUiStore((state) => state.setDefaultChatModel);
   const resetPreferences = useUiStore((state) => state.resetPreferences);
 
   const [apiDraft, setApiDraft] = useState(apiBaseUrl);
+
+  const modelsQuery = useQuery({
+    queryKey: ['llm-models'],
+    queryFn: () => api.listLlmModels()
+  });
+
+  useEffect(() => {
+    if (!modelsQuery.data) return;
+    const { defaultModel, models } = modelsQuery.data;
+    const ids = models.map((model) => model.id);
+    if (!defaultChatModel || !ids.includes(defaultChatModel)) {
+      setDefaultChatModel(defaultModel);
+    }
+  }, [modelsQuery.data, defaultChatModel, setDefaultChatModel]);
 
   const saveApi = () => {
     const trimmed = apiDraft.trim();
@@ -47,8 +65,13 @@ export function SettingsPage() {
   const handleReset = () => {
     resetPreferences();
     setApiDraft(DEFAULT_PREFERENCES.apiBaseUrl);
+    if (modelsQuery.data?.defaultModel) {
+      setDefaultChatModel(modelsQuery.data.defaultModel);
+    }
     toast.success('Preferences reset to defaults');
   };
+
+  const selectedModel = defaultChatModel || modelsQuery.data?.defaultModel || '';
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
@@ -113,6 +136,44 @@ export function SettingsPage() {
               </SelectContent>
             </Select>
           </SettingRow>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>LLM</CardTitle>
+          <CardDescription>
+            Default model for video chat. Summarization uses the server default from{' '}
+            <code className="text-xs">.env</code>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SettingRow label="Default chat model" hint="Used when you open chat; you can still switch per message.">
+            <Select
+              value={selectedModel}
+              onValueChange={(value) => {
+                setDefaultChatModel(value);
+                toast.success(`Default chat model set to ${value}`);
+              }}
+              disabled={!modelsQuery.data || modelsQuery.isLoading}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder={modelsQuery.isLoading ? 'Loading…' : 'Select model'} />
+              </SelectTrigger>
+              <SelectContent>
+                {(modelsQuery.data?.models ?? []).map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          {modelsQuery.isError && (
+            <p className="mt-3 text-xs text-destructive">
+              Could not load models from the API. Check the API base URL and that the server is running.
+            </p>
+          )}
         </CardContent>
       </Card>
 

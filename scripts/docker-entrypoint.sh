@@ -63,7 +63,7 @@ bootstrap_database() {
   fi
 
   echo "Running database migrations..."
-  pnpm --filter @video-rag/database migration:run || true
+  pnpm --filter @video-rag/api migration:run || true
 }
 
 wait_for_postgres
@@ -71,11 +71,10 @@ ensure_pgvector_extension
 bootstrap_database
 
 case "$ROLE" in
-  api)
+  api|worker)
+    # Ingestion consumer runs inside the API Nest process (IngestionModule).
+    # "worker" is accepted for backwards-compatible compose commands.
     exec pnpm --filter @video-rag/api start
-    ;;
-  worker)
-    exec pnpm --filter @video-rag/worker start
     ;;
   *)
     exec "$@"

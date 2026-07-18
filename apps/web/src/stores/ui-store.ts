@@ -13,6 +13,7 @@ export interface UiState {
   pageSize: number;
   videoPage: number;
   apiBaseUrl: string;
+  defaultChatModel: string;
   setTheme: (theme: ThemeMode) => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -20,6 +21,7 @@ export interface UiState {
   setPageSize: (size: number) => void;
   setVideoPage: (page: number) => void;
   setApiBaseUrl: (url: string) => void;
+  setDefaultChatModel: (model: string) => void;
   resetPreferences: () => void;
 }
 
@@ -28,7 +30,8 @@ export const DEFAULT_PREFERENCES = {
   sidebarCollapsed: false,
   videoView: 'card' as VideoView,
   pageSize: 9,
-  apiBaseUrl: DEFAULT_API_BASE
+  apiBaseUrl: DEFAULT_API_BASE,
+  defaultChatModel: ''
 };
 
 export const useUiStore = create<UiState>()(
@@ -43,6 +46,7 @@ export const useUiStore = create<UiState>()(
       setPageSize: (pageSize) => set({ pageSize, videoPage: 1 }),
       setVideoPage: (videoPage) => set({ videoPage }),
       setApiBaseUrl: (apiBaseUrl) => set({ apiBaseUrl }),
+      setDefaultChatModel: (defaultChatModel) => set({ defaultChatModel }),
       resetPreferences: () => set({ ...DEFAULT_PREFERENCES, videoPage: 1 })
     }),
     {
@@ -52,7 +56,8 @@ export const useUiStore = create<UiState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         videoView: state.videoView,
         pageSize: state.pageSize,
-        apiBaseUrl: state.apiBaseUrl
+        apiBaseUrl: state.apiBaseUrl,
+        defaultChatModel: state.defaultChatModel
       })
     }
   )

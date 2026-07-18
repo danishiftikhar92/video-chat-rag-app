@@ -1,13 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import {
-  createTypeOrmConfig,
-  ensurePgVector,
-  ensureVectorExtension,
-  entities
-} from '@video-rag/database';
 import { getEnv } from '../config/env';
+import { createTypeOrmConfig, ensurePgVector, ensureVectorExtension, entities } from './index';
 
 @Global()
 @Module({

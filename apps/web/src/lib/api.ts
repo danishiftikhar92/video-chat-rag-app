@@ -2,11 +2,12 @@ import type {
   ChatResponse,
   CreateVideoInput,
   JobDto,
+  LlmModelsResponse,
   SummaryDto,
   TranscriptDto,
   VideoDto,
   VideoListResponse
-} from '@video-rag/shared';
+} from '@/types/api';
 import { useUiStore } from '@/stores/ui-store';
 
 function getApiBase(): string {
@@ -126,10 +127,12 @@ export const api = {
   getTranscript: (id: string) => request<TranscriptDto>(`/videos/${id}/transcript`),
   getSummary: (id: string) => request<SummaryDto>(`/videos/${id}/summary`),
 
-  chat: (id: string, query: string, sessionId?: string) =>
+  listLlmModels: () => request<LlmModelsResponse>('/llm/models'),
+
+  chat: (id: string, query: string, sessionId?: string, model?: string) =>
     request<ChatResponse>(`/videos/${id}/chat`, {
       method: 'POST',
-      body: JSON.stringify({ query, sessionId })
+      body: JSON.stringify({ query, sessionId, model })
     }),
 
   getSessionMessages: async (sessionId: string): Promise<SessionMessage[]> => {

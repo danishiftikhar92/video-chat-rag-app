@@ -11,8 +11,8 @@ import {
   UseInterceptors
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { createVideoSchema, videoListQuerySchema } from '@video-rag/shared';
-import { SourceType } from '@video-rag/database';
+import { createVideoSchema, videoListQuerySchema } from '../../shared';
+import { SourceType } from '../../database';
 import path from 'node:path';
 import { getEnv } from '../../config/env';
 import { InMemoryRateLimitService } from '../../common/rate-limit.service';

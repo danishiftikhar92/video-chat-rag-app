@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { config } from 'dotenv';
-import { appEnvSchema, type AppEnv } from '@video-rag/shared';
+import { appEnvSchema, type AppEnv } from '../shared';
 
 function resolveEnvPath(): string | undefined {
   const candidates = [

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Summary } from '@video-rag/database';
+import { Summary } from '../../database';
 import { Repository } from 'typeorm';
 
 @Injectable()

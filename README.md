@@ -6,7 +6,7 @@ Production-shaped monorepo that ingests video URLs or uploaded media, extracts a
 
 1. Submit a YouTube / public media URL or upload a local file.
 2. The API creates a video record and queues an ingestion job on Redis (BullMQ).
-3. The worker downloads (or reads) media, extracts audio, transcribes it locally, chunks + embeds the transcript, and writes a summary.
+3. The API's ingestion module downloads (or reads) media, extracts audio, transcribes it locally, chunks + embeds the transcript, and writes a summary.
 4. The web UI lets you browse the library, watch processing status, read the transcript and summary, and ask questions that are answered with citations grounded in transcript evidence.
 
 ## Features
@@ -14,7 +14,7 @@ Production-shaped monorepo that ingests video URLs or uploaded media, extracts a
 ### Ingestion & processing
 - **Multiple sources** — YouTube / public URLs (via `yt-dlp` / `curl`) and direct file uploads.
 - **Fully local AI** — offline transcription with whisper.cpp, embeddings + chat/summary with Ollama.
-- **Async pipeline** — heavy work runs on a BullMQ worker so the API stays responsive; live progress (5% → 100%).
+- **Async pipeline** — heavy work runs on a BullMQ consumer inside the API process; live progress (5% → 100%).
 - **Smart titles** — human‑readable titles from metadata, embedded media title tags (`ffprobe`), or a cleaned‑up file name — never the raw file path.
 - **Retry** — re‑queue a failed or stuck ingestion from the UI or API.
 - **Hard delete** — remove a video plus all related rows (transcript, chunks, summary, chat, jobs) and its stored files in one action.
@@ -37,47 +37,41 @@ Production-shaped monorepo that ingests video URLs or uploaded media, extracts a
 | Layer | Technology |
 |-------|-----------|
 | Language / tooling | TypeScript, pnpm workspaces, Turborepo, ESLint, Prettier |
-| API | NestJS, TypeORM, BullMQ (producer) |
-| Worker | Node.js, BullMQ (consumer), yt-dlp, FFmpeg/ffprobe, whisper.cpp |
+| API | NestJS, TypeORM, BullMQ (producer + ingestion consumer), yt-dlp, FFmpeg/ffprobe, whisper.cpp |
 | Data | PostgreSQL 16 + `pgvector`, Redis 7 |
 | AI | Ollama (chat + embeddings), whisper.cpp (transcription) |
 | Web | React 18, Vite, React Router 7, TanStack Query, Zustand, Tailwind CSS, shadcn/ui (Radix), lucide-react, sonner |
-| Contracts | Zod schemas / DTOs shared across apps |
+| Contracts | Zod schemas / DTOs in the API; mirrored TypeScript types in the web app |
 | Infra | Docker & Docker Compose, Nginx (serves the built web app) |
 
 ## Monorepo layout
 
 | Path | Role |
 |------|------|
-| `apps/api` | NestJS REST API (TypeORM + Postgres/pgvector, BullMQ producer, Ollama RAG chat) |
-| `apps/worker` | BullMQ worker (yt-dlp, FFmpeg, whisper.cpp, chunking, Ollama embeddings/summaries) |
-| `apps/web` | React + Vite + Tailwind/shadcn admin & chat UI (Zustand state, TanStack Query) |
-| `packages/shared` | Shared Zod env schemas, DTOs, contracts, Ollama client, queue name |
-| `packages/database` | Shared TypeORM entities, enums, DataSource, pgvector bootstrap, migrations |
-| `packages/config` | Shared TypeScript / tooling config |
+| `apps/api` | NestJS REST API (TypeORM + Postgres/pgvector, BullMQ producer + ingestion consumer, Ollama RAG chat). Owns DB entities/migrations and Zod contracts under `src/database` + `src/shared`. |
+| `apps/web` | React + Vite + Tailwind/shadcn admin & chat UI (Zustand state, TanStack Query). Owns local API DTO types under `src/types`. |
 
 ## Architecture
 
 ```text
   Web (React/Vite)  --->  API (NestJS)  --->  Postgres + pgvector
-                             |                 ^
-                             v                 |
-                           Redis (BullMQ) ---> Worker
+                             |  ^            ^
+                             v  |            |
+                           Redis (BullMQ) ---+
                              |                 |
                              +---- local FS artifacts (/data/uploads or ./uploads)
                              |
                            Ollama (Docker :11434)
 ```
 
-- **API** handles sync HTTP: create videos, list/detail/delete, status, transcript/summary/chat.
-- **Worker** handles heavy async work so ingestion does not block the API.
-- **Redis / BullMQ** is the job queue between API (producer) and worker (consumer).
+- **API** handles sync HTTP (create videos, list/detail/delete, status, transcript/summary/chat) and runs the BullMQ ingestion consumer as an `IngestionModule`.
+- **Redis / BullMQ** is the job queue between the API producer and the in-process consumer.
 - **Postgres + pgvector** stores relational data and transcript‑chunk embeddings.
 - **Ollama** serves local chat and embedding models (no cloud AI keys).
-- **whisper.cpp** runs on the worker host (or a baked‑in binary) for offline transcription.
+- **whisper.cpp** runs on the API host (or a baked‑in binary) for offline transcription.
 - **Local filesystem** stores artifacts (media, audio, transcript, summary) under `videos/<id>/`.
 
-### Ingestion pipeline (worker)
+### Ingestion pipeline (API IngestionModule)
 
 | Progress | Step |
 |----------|------|
@@ -114,7 +108,7 @@ Delete (list/detail) -> Confirm dialog -> DELETE /videos/:id
 - Docker + Docker Compose (recommended for Postgres, Redis, Ollama)
 - FFmpeg (+ ffprobe)
 - yt-dlp (for YouTube sources)
-- A built [whisper.cpp](https://github.com/ggerganov/whisper.cpp) binary + GGML model file (only when running the worker on the host; the Docker image bakes one in)
+- A built [whisper.cpp](https://github.com/ggerganov/whisper.cpp) binary + GGML model file (only when running the API on the host; the Docker image bakes one in)
 
 ## Local AI setup
 
@@ -157,18 +151,15 @@ TRANSCRIPTION_PROVIDER=whispercpp
 ### 3. Run Ollama with Docker
 
 ```bash
-# From the repo root (starts Postgres, Redis, Ollama, …)
-docker compose up -d postgres redis ollama
-
-# Pull local models used by this project
-docker compose exec ollama ollama pull llama3.2:1b
-docker compose exec ollama ollama pull all-minilm
+# From the repo root (starts Postgres, Redis, Ollama, and pulls models from .env)
+docker compose up -d postgres redis ollama ollama-init
 ```
 
-CPU-only equivalent:
+`ollama-init` pulls every model in `LLM_AVAILABLE_MODELS` plus `OLLAMA_EMBED_MODEL`. For a host-only Ollama:
 
 ```bash
 docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+# Pull the same allowlist as in .env, e.g.:
 docker exec -it ollama ollama pull llama3.2:1b
 docker exec -it ollama ollama pull all-minilm
 ```
@@ -179,19 +170,31 @@ NVIDIA GPU:
 docker run -d --gpus=all -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
 ```
 
-### 4. Configure env and run the NestJS apps
+### Lightweight chat models (recommended allowlist)
+
+| Model | Approx size | Notes |
+|-------|-------------|--------|
+| `llama3.2:1b` | ~1.3 GB | Default; fastest |
+| `qwen2.5:1.5b` | ~1.0 GB | Strong small instruct model |
+| `smollm2:1.7b` | ~1.0 GB | Very light, good for chat |
+| `gemma2:2b` | ~1.6 GB | Solid quality/size tradeoff |
+| `phi3:mini` | ~2.3 GB | Heavier end of “light” |
+
+Configure via `LLM_DEFAULT_MODEL` and `LLM_AVAILABLE_MODELS` in `.env`. Embeddings stay on `all-minilm` (fixed dimensions).
+
+### 4. Configure env and run the NestJS app
 
 ```bash
 cp .env.example .env
 # Ensure OLLAMA_BASE_URL=http://localhost:11434
-# OLLAMA_CHAT_MODEL=llama3.2:1b
+# LLM_DEFAULT_MODEL=llama3.2:1b
+# LLM_AVAILABLE_MODELS=llama3.2:1b,qwen2.5:1.5b,smollm2:1.7b,gemma2:2b,phi3:mini
 # OLLAMA_EMBED_MODEL=all-minilm
 # EMBEDDING_DIMENSIONS=384
 
 pnpm install
 pnpm build
 pnpm --filter @video-rag/api start
-pnpm --filter @video-rag/worker start
 pnpm --filter @video-rag/web dev
 ```
 
@@ -203,9 +206,9 @@ The Docker image bakes in whisper.cpp (with a base model), FFmpeg, and yt-dlp, s
 cp .env.example .env
 
 docker compose up --build
-docker compose exec ollama ollama pull llama3.2:1b
-docker compose exec ollama ollama pull all-minilm
 ```
+
+`ollama-init` pulls `LLM_AVAILABLE_MODELS` and `OLLAMA_EMBED_MODEL` automatically before the API starts.
 
 Services:
 
@@ -217,7 +220,7 @@ Services:
 | Postgres | `localhost:5433` → container `5432` |
 | Redis | `localhost:6379` |
 
-Compose loads `.env` for `api` and `worker`, and overrides `DATABASE_URL` / `REDIS_URL` / `OLLAMA_BASE_URL` for the Docker network. Uploads are stored on a shared volume at `/data/uploads`.
+Compose loads `.env` for `api` and `ollama-init`, and overrides `DATABASE_URL` / `REDIS_URL` / `OLLAMA_BASE_URL` for the Docker network. Uploads are stored on a volume at `/data/uploads`. Ingestion runs inside the API process.
 
 > If a local Postgres already uses port `5432`, Compose publishes the app database on **`5433`**. Local `.env` should use `DATABASE_URL=postgresql://postgres:postgres@localhost:5433/video_rag`.
 
@@ -225,13 +228,10 @@ Compose loads `.env` for `api` and `worker`, and overrides `DATABASE_URL` / `RED
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres redis ollama
-docker compose exec ollama ollama pull llama3.2:1b
-docker compose exec ollama ollama pull all-minilm
+docker compose up -d postgres redis ollama ollama-init
 pnpm install
 pnpm build
 pnpm --filter @video-rag/api start
-pnpm --filter @video-rag/worker start
 pnpm --filter @video-rag/web dev   # Vite dev server on http://localhost:5173
 ```
 
@@ -239,11 +239,11 @@ pnpm --filter @video-rag/web dev   # Vite dev server on http://localhost:5173
 
 ```bash
 pnpm dev          # run all apps in parallel (turbo)
-pnpm build        # build all packages/apps
+pnpm build        # build all apps
 pnpm typecheck    # typecheck everything
 pnpm lint         # lint everything
 pnpm format       # prettier --write .
-pnpm db:migrate   # run TypeORM migrations (@video-rag/database)
+pnpm db:migrate   # run TypeORM migrations (@video-rag/api)
 ```
 
 ## Important environment variables
@@ -263,8 +263,12 @@ pnpm db:migrate   # run TypeORM migrations (@video-rag/database)
 | `WHISPER_MODEL_PATH` | Path to GGML model (e.g. `ggml-base.bin`) |
 | `CHAT_PROVIDER` | `ollama` or `mock` |
 | `EMBEDDING_PROVIDER` | `ollama` or `mock` |
+| `LLM_PROVIDER` | Chat gateway provider (`ollama` or `mock`) |
+| `LLM_DEFAULT_MODEL` | Default model for summarization + chat fallback |
+| `LLM_AVAILABLE_MODELS` | Comma-separated allowlist of chat models |
+| `LLM_OPENAI_BASE_URL` / `LLM_OPENAI_API_KEY` / `LLM_OPENAI_MODELS` | Optional OpenAI-compatible online models |
 | `OLLAMA_BASE_URL` | Ollama HTTP API (`http://localhost:11434`) |
-| `OLLAMA_CHAT_MODEL` | Chat / summary model (default `llama3.2:1b`) |
+| `OLLAMA_CHAT_MODEL` | Legacy alias; synced to `LLM_DEFAULT_MODEL` |
 | `OLLAMA_EMBED_MODEL` | Embedding model (default `all-minilm`) |
 | `EMBEDDING_DIMENSIONS` | Must match embed model (default `384` for `all-minilm`) |
 | `MAX_UPLOAD_SIZE_MB` | Upload size cap |
@@ -288,7 +292,8 @@ See `.env.example` for the full list.
 | `DELETE` | `/videos/:id` | Hard delete video + all related data & files |
 | `GET` | `/videos/:id/transcript` | Transcript + segments |
 | `GET` | `/videos/:id/summary` | Summary |
-| `POST` | `/videos/:id/chat` | Grounded Q&A with citations |
+| `POST` | `/videos/:id/chat` | Grounded Q&A with citations (optional `model`) |
+| `GET` | `/llm/models` | Available chat models + server default |
 | `POST` | `/sessions` | Create a chat session |
 | `GET` | `/sessions/:id` | Get session |
 | `GET` | `/sessions/:id/messages` | Session message history |
@@ -308,7 +313,7 @@ See `.env.example` for the full list.
 - `/videos/:id/summary` — summary
 - `/chat` — chat workspace (pick a video)
 - `/chat/video/:id` — chat with a specific video (citations)
-- `/settings` — client-side preferences (theme, default view, page size, API base URL)
+- `/settings` — preferences (theme, view, page size, default chat model, API base URL)
 
 ## Data model (high level)
 

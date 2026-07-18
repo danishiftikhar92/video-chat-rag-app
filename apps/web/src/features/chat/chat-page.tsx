@@ -1,9 +1,9 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Bot, MessageSquare, SendHorizontal, Sparkles, Trash2, User } from 'lucide-react';
-import type { VideoDto } from '@video-rag/shared';
+import type { VideoDto } from '@/types/api';
 import { api, type Citation, type SessionMessage } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,11 +29,13 @@ import {
 } from '@/components/ui/select';
 import { cn, formatTimestamp } from '@/lib/utils';
 import { useChatStore } from '@/stores/chat-store';
+import { useUiStore } from '@/stores/ui-store';
 
 interface ChatMessage {
   role: string;
   content: string;
   citations?: Citation[];
+  modelUsed?: string;
 }
 
 export function ChatPage() {
@@ -46,10 +48,12 @@ export function ChatPage() {
   const clearSession = useChatStore((state) => state.clearSession);
   const setLastVideoId = useChatStore((state) => state.setLastVideoId);
   const lastVideoId = useChatStore((state) => state.lastVideoId);
+  const defaultChatModel = useUiStore((state) => state.defaultChatModel);
 
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('');
   const logRef = useRef<HTMLDivElement | null>(null);
 
   const sessionId = id ? sessionByVideo[id] : undefined;
@@ -60,6 +64,23 @@ export function ChatPage() {
   });
   const videos = videosData?.items ?? [];
   const activeVideo = videos.find((video) => video.id === id);
+
+  const modelsQuery = useQuery({
+    queryKey: ['llm-models'],
+    queryFn: () => api.listLlmModels()
+  });
+
+  useEffect(() => {
+    if (!modelsQuery.data) return;
+    const ids = modelsQuery.data.models.map((model) => model.id);
+    const preferred =
+      (selectedModel && ids.includes(selectedModel) && selectedModel) ||
+      (defaultChatModel && ids.includes(defaultChatModel) && defaultChatModel) ||
+      modelsQuery.data.defaultModel;
+    if (preferred !== selectedModel) {
+      setSelectedModel(preferred);
+    }
+  }, [modelsQuery.data, defaultChatModel, selectedModel]);
 
   const historyQuery = useQuery({
     queryKey: ['session-messages', sessionId],
@@ -93,14 +114,18 @@ export function ChatPage() {
   };
 
   const mutation = useMutation({
-    mutationFn: (text: string) => api.chat(id as string, text, sessionId),
+    mutationFn: (text: string) => api.chat(id as string, text, sessionId, selectedModel || undefined),
     onSuccess: (response) => {
       if (id) setSession(id, response.sessionId);
       setMessages(
-        response.messages.map((message) => ({
+        response.messages.map((message, index, all) => ({
           role: message.role,
           content: message.content,
-          citations: message.citations
+          citations: message.citations,
+          modelUsed:
+            message.role === 'assistant' && index === all.length - 1
+              ? response.modelUsed
+              : undefined
         }))
       );
       scrollToBottom();
@@ -218,6 +243,25 @@ export function ChatPage() {
         </ScrollArea>
 
         <form onSubmit={onSubmit} className="border-t p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Model</span>
+            <Select
+              value={selectedModel}
+              onValueChange={setSelectedModel}
+              disabled={!modelsQuery.data || modelsQuery.isLoading}
+            >
+              <SelectTrigger className="h-8 w-[220px]">
+                <SelectValue placeholder={modelsQuery.isLoading ? 'Loading…' : 'Select model'} />
+              </SelectTrigger>
+              <SelectContent>
+                {(modelsQuery.data?.models ?? []).map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-end gap-2">
             <Textarea
               value={query}
@@ -300,6 +344,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         >
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
+        {!isUser && message.modelUsed && (
+          <p className="text-[11px] text-muted-foreground">via {message.modelUsed}</p>
+        )}
         {message.citations && message.citations.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {message.citations.map((citation, index) => (

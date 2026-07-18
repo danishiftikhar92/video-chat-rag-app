@@ -9,8 +9,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
-    "db:migrate": "pnpm --filter @video-rag/database migration:run",
-    "db:migration:run": "pnpm --filter @video-rag/database migration:run"
+    "db:migrate": "pnpm --filter @video-rag/api migration:run",
+    "db:migration:run": "pnpm --filter @video-rag/api migration:run"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

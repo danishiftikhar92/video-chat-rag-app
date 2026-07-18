@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { type CreateVideoInput } from '@video-rag/shared';
+import { type CreateVideoInput } from '../../shared';
 import {
   ChatMessage,
   ChatSession,
@@ -12,7 +12,7 @@ import {
   Video,
   VideoJob,
   VideoStatus
-} from '@video-rag/database';
+} from '../../database';
 import { DataSource, In, Repository } from 'typeorm';
 import { QueueService } from '../../queue/queue.service';
 import { StorageService } from '../storage/storage.service';

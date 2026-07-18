@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Film } from 'lucide-react';
-import type { VideoDto } from '@video-rag/shared';
+import type { VideoDto } from '@/types/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn, getYouTubeThumbnail } from '@/lib/utils';
 

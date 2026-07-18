@@ -1,1 +1,1 @@
-export { ingestionQueueName } from '@video-rag/shared';
+export { ingestionQueueName } from '../shared';

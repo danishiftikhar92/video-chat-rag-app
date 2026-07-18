@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { JobStatus, Video, VideoJob, VideoStatus } from '@video-rag/database';
+import { JobStatus, Video, VideoJob, VideoStatus } from '../../database';
 import { Repository } from 'typeorm';
 import { QueueService } from '../../queue/queue.service';
 

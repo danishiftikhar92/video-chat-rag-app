@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createOllamaClientFromEnv } from '@video-rag/shared';
+import { createLlmGatewayFromEnv, type LlmGateway } from '../../shared';
 import { getEnv } from '../../config/env';
 import { RagService } from '../rag/rag.service';
 
@@ -21,9 +21,18 @@ type Citation = {
   endTime: number;
 };
 
+export type AgentAnswer = {
+  answer: string;
+  citations: Citation[];
+  confidence: number;
+  mode: string;
+  needsClarification: boolean;
+  modelUsed: string;
+};
+
 @Injectable()
 export class AgentService {
-  private readonly ollama = createOllamaClientFromEnv(getEnv());
+  private readonly gateway: LlmGateway = createLlmGatewayFromEnv(getEnv());
 
   constructor(private readonly ragService: RagService) {}
 
@@ -37,7 +46,8 @@ export class AgentService {
     }));
   }
 
-  async answerQuestion(videoIds: string[], query: string) {
+  async answerQuestion(videoIds: string[], query: string, model?: string): Promise<AgentAnswer> {
+    const resolvedModel = this.gateway.resolveModel(model);
     const mode = /summary|highlight|key points/i.test(query) ? 'summary' : 'qa';
 
     if (mode === 'summary') {
@@ -49,20 +59,25 @@ export class AgentService {
           citations: [] as Citation[],
           confidence: 0.1,
           mode,
-          needsClarification: false
+          needsClarification: false,
+          modelUsed: resolvedModel
         };
       }
 
       const prompt = `Summarize the following transcript context in bullet points and keep it grounded.\n\n${selectedChunks
         .map((chunk) => `- [${chunk.startTime}-${chunk.endTime}] ${chunk.content}`)
         .join('\n')}`;
-      const answer = await this.ollama.chat(prompt, { temperature: 0.2 });
+      const result = await this.gateway.chat([{ role: 'user', content: prompt }], {
+        model: resolvedModel,
+        temperature: 0.2
+      });
       return {
-        answer,
+        answer: result.content,
         citations: this.toCitations(selectedChunks),
         confidence: 0.9,
         mode,
-        needsClarification: false
+        needsClarification: false,
+        modelUsed: result.modelUsed
       };
     }
 
@@ -80,7 +95,8 @@ export class AgentService {
           citations: [] as Citation[],
           confidence: 0.1,
           mode,
-          needsClarification: false
+          needsClarification: false,
+          modelUsed: resolvedModel
         };
       }
 
@@ -93,14 +109,18 @@ export class AgentService {
       const prompt = `Answer the user question using only the transcript context. If the answer is not present, say so.\n\nQuestion: ${currentQuery}\n\nContext:\n${retrievedChunks
         .map((chunk) => `- [${chunk.startTime}-${chunk.endTime}] ${chunk.content}`)
         .join('\n')}`;
-      const answer = await this.ollama.chat(prompt, { temperature: 0.2 });
+      const result = await this.gateway.chat([{ role: 'user', content: prompt }], {
+        model: resolvedModel,
+        temperature: 0.2
+      });
 
       return {
-        answer,
+        answer: result.content,
         citations: this.toCitations(retrievedChunks),
         confidence: grade === 'high' ? 0.9 : 0.5,
         mode,
-        needsClarification: grade === 'low'
+        needsClarification: grade === 'low',
+        modelUsed: result.modelUsed
       };
     }
 
@@ -109,7 +129,8 @@ export class AgentService {
       citations: [] as Citation[],
       confidence: 0.1,
       mode,
-      needsClarification: false
+      needsClarification: false,
+      modelUsed: resolvedModel
     };
   }
 }
