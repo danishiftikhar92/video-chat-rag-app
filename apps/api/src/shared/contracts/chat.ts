@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { chatRoleSchema, citationSchema } from '../common/schemas';
+import { guardrailAppliedSchema } from './guardrails';
 
 export const createSessionSchema = z.object({
   videoId: z.string().optional(),
@@ -29,7 +30,8 @@ export const chatResponseSchema = z.object({
   citations: z.array(citationSchema),
   confidence: z.number().min(0).max(1),
   modelUsed: z.string(),
-  messages: z.array(chatMessageSchema)
+  messages: z.array(chatMessageSchema),
+  guardrailApplied: guardrailAppliedSchema.optional()
 });
 
 export const sessionSchema = z.object({

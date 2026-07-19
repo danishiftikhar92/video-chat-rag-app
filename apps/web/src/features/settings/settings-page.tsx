@@ -20,6 +20,7 @@ import {
   type ThemeMode,
   type VideoView
 } from '@/stores/ui-store';
+import { GuardrailsSection } from './guardrails-section';
 
 const PAGE_SIZE_OPTIONS = [6, 9, 12, 24, 48];
 
@@ -79,7 +80,7 @@ export function SettingsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Preferences are stored locally in your browser.
+            Preferences are stored locally; guard rails are managed on the server.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleReset}>
@@ -87,6 +88,8 @@ export function SettingsPage() {
           Reset
         </Button>
       </div>
+
+      <GuardrailsSection />
 
       <Card>
         <CardHeader>

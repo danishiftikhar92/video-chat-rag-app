@@ -96,6 +96,49 @@ export type ChatResponse = {
   confidence: number;
   modelUsed: string;
   messages: ChatMessageDto[];
+  guardrailApplied?: GuardrailApplied;
+};
+
+export type GuardRailType = 'prompt_injection' | 'pii_mask' | 'scope' | 'harmful_content';
+export type GuardRailDirection = 'input' | 'output' | 'both';
+
+export type GuardRailConfig = {
+  patterns?: string[];
+  keywords?: string[];
+  allowKeywords?: string[];
+  denyKeywords?: string[];
+  refusalMessage?: string;
+};
+
+export type GuardRailDto = {
+  id: string;
+  name: string;
+  description: string | null;
+  type: GuardRailType;
+  direction: GuardRailDirection;
+  enabled: boolean;
+  priority: number;
+  config: GuardRailConfig;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateGuardRailInput = {
+  name: string;
+  description?: string | null;
+  type: GuardRailType;
+  direction: GuardRailDirection;
+  enabled?: boolean;
+  priority?: number;
+  config?: GuardRailConfig;
+};
+
+export type UpdateGuardRailInput = Partial<CreateGuardRailInput>;
+
+export type GuardrailApplied = {
+  blocked: boolean;
+  reasons: string[];
+  appliedRailIds: string[];
 };
 
 export type LlmModelInfo = {

@@ -12,3 +12,14 @@ export type ChatRole = (typeof chatRoles)[number];
 
 export const summaryModes = ['summary', 'highlights', 'action_items'] as const;
 export type SummaryMode = (typeof summaryModes)[number];
+
+export const guardRailTypes = [
+  'prompt_injection',
+  'pii_mask',
+  'scope',
+  'harmful_content'
+] as const;
+export type GuardRailType = (typeof guardRailTypes)[number];
+
+export const guardRailDirections = ['input', 'output', 'both'] as const;
+export type GuardRailDirection = (typeof guardRailDirections)[number];

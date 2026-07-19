@@ -1,10 +1,13 @@
 import type {
   ChatResponse,
+  CreateGuardRailInput,
   CreateVideoInput,
+  GuardRailDto,
   JobDto,
   LlmModelsResponse,
   SummaryDto,
   TranscriptDto,
+  UpdateGuardRailInput,
   VideoDto,
   VideoListResponse
 } from '@/types/api';
@@ -151,6 +154,20 @@ export const api = {
     request<{ sessionId: string; cleared: boolean }>(`/sessions/${sessionId}/messages`, {
       method: 'DELETE'
     }),
+
+  listGuardrails: () => request<GuardRailDto[]>('/guardrails'),
+  createGuardrail: (input: CreateGuardRailInput) =>
+    request<GuardRailDto>('/guardrails', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    }),
+  updateGuardrail: (id: string, input: UpdateGuardRailInput) =>
+    request<GuardRailDto>(`/guardrails/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    }),
+  deleteGuardrail: (id: string) =>
+    request<{ id: string; deleted: boolean }>(`/guardrails/${id}`, { method: 'DELETE' }),
 
   listJobs: () => request<JobDto[]>('/admin/jobs')
 };

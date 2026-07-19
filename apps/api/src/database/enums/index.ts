@@ -23,3 +23,16 @@ export enum ChatRole {
   assistant = 'assistant',
   system = 'system'
 }
+
+export enum GuardRailType {
+  prompt_injection = 'prompt_injection',
+  pii_mask = 'pii_mask',
+  scope = 'scope',
+  harmful_content = 'harmful_content'
+}
+
+export enum GuardRailDirection {
+  input = 'input',
+  output = 'output',
+  both = 'both'
+}

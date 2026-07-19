@@ -3,6 +3,7 @@ import { DatabaseModule } from './database/database.module';
 import { QueueModule } from './queue/queue.module';
 import { AgentModule } from './modules/agent/agent.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { GuardrailsModule } from './modules/guardrails/guardrails.module';
 import { HealthModule } from './modules/health/health.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { JobsModule } from './modules/jobs/jobs.module';
@@ -26,6 +27,7 @@ import { VideoModule } from './modules/video/video.module';
     SummaryModule,
     RagModule,
     AgentModule,
+    GuardrailsModule,
     ChatModule,
     LlmModule,
     MediaModule,

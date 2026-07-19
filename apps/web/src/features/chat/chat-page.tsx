@@ -36,6 +36,7 @@ interface ChatMessage {
   content: string;
   citations?: Citation[];
   modelUsed?: string;
+  guardrailBlocked?: boolean;
 }
 
 export function ChatPage() {
@@ -125,7 +126,11 @@ export function ChatPage() {
           modelUsed:
             message.role === 'assistant' && index === all.length - 1
               ? response.modelUsed
-              : undefined
+              : undefined,
+          guardrailBlocked:
+            message.role === 'assistant' &&
+            index === all.length - 1 &&
+            Boolean(response.guardrailApplied?.blocked)
         }))
       );
       scrollToBottom();
@@ -345,7 +350,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
         {!isUser && message.modelUsed && (
-          <p className="text-[11px] text-muted-foreground">via {message.modelUsed}</p>
+          <p className="text-[11px] text-muted-foreground">
+            via {message.modelUsed}
+            {message.guardrailBlocked ? ' · blocked by guard rail' : ''}
+          </p>
         )}
         {message.citations && message.citations.length > 0 && (
           <div className="flex flex-wrap gap-1.5">

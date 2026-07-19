@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm';
 import {
   ChatMessage,
   ChatSession,
+  GuardRail,
   Summary,
   Transcript,
   TranscriptChunk,
@@ -11,7 +12,16 @@ import {
 } from './entities/index';
 import { ensurePgVector, ensureVectorExtension } from './pgvector';
 
-export const entities = [Video, VideoJob, Transcript, TranscriptChunk, ChatSession, ChatMessage, Summary];
+export const entities = [
+  Video,
+  VideoJob,
+  Transcript,
+  TranscriptChunk,
+  ChatSession,
+  ChatMessage,
+  Summary,
+  GuardRail
+];
 
 export const createDataSource = (databaseUrl: string, synchronize = false) =>
   new DataSource({

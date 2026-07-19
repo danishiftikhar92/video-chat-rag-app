@@ -4,6 +4,7 @@ export * from './common/schemas';
 export * from './contracts/video';
 export * from './contracts/chat';
 export * from './contracts/summary';
+export * from './contracts/guardrails';
 export * from './env/schema';
 export * from './ai/ollama.client';
 export * from './ai/llm-gateway.types';
