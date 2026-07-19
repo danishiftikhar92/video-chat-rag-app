@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Bot, MessageSquare, SendHorizontal, Sparkles, Trash2, User } from 'lucide-react';
+import { Bot, MessageSquare, SendHorizontal, Sparkles, ThumbsDown, ThumbsUp, Trash2, User } from 'lucide-react';
 import type { VideoDto } from '@/types/api';
 import { api, type Citation, type SessionMessage } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,8 @@ interface ChatMessage {
   citations?: Citation[];
   modelUsed?: string;
   guardrailBlocked?: boolean;
+  traceId?: string;
+  feedback?: 'up' | 'down';
 }
 
 export function ChatPage() {
@@ -95,13 +97,26 @@ export function ChatPage() {
 
   useEffect(() => {
     if (historyQuery.data) {
-      setMessages(
-        historyQuery.data.map((message: SessionMessage) => ({
-          role: message.role,
-          content: message.content,
-          citations: message.citations
-        }))
-      );
+      setMessages((current) => {
+        const priorByKey = new Map(
+          current
+            .filter((message) => message.traceId || message.feedback || message.modelUsed)
+            .map((message) => [`${message.role}:${message.content}`, message] as const)
+        );
+
+        return historyQuery.data.map((message: SessionMessage) => {
+          const prior = priorByKey.get(`${message.role}:${message.content}`);
+          return {
+            role: message.role,
+            content: message.content,
+            citations: message.citations,
+            traceId: prior?.traceId,
+            feedback: prior?.feedback,
+            modelUsed: prior?.modelUsed,
+            guardrailBlocked: prior?.guardrailBlocked
+          };
+        });
+      });
     } else if (!sessionId) {
       setMessages([]);
     }
@@ -118,21 +133,40 @@ export function ChatPage() {
     mutationFn: (text: string) => api.chat(id as string, text, sessionId, selectedModel || undefined),
     onSuccess: (response) => {
       if (id) setSession(id, response.sessionId);
-      setMessages(
-        response.messages.map((message, index, all) => ({
+      queryClient.setQueryData(
+        ['session-messages', response.sessionId],
+        response.messages.map((message) => ({
+          id: message.id,
+          sessionId: message.sessionId,
           role: message.role,
           content: message.content,
           citations: message.citations,
-          modelUsed:
-            message.role === 'assistant' && index === all.length - 1
-              ? response.modelUsed
-              : undefined,
-          guardrailBlocked:
-            message.role === 'assistant' &&
-            index === all.length - 1 &&
-            Boolean(response.guardrailApplied?.blocked)
+          createdAt: message.createdAt
         }))
       );
+      setMessages((current) => {
+        const priorByKey = new Map(
+          current
+            .filter((message) => message.traceId || message.feedback || message.modelUsed)
+            .map((message) => [`${message.role}:${message.content}`, message] as const)
+        );
+
+        return response.messages.map((message, index, all) => {
+          const isLatestAssistant = message.role === 'assistant' && index === all.length - 1;
+          const prior = priorByKey.get(`${message.role}:${message.content}`);
+          return {
+            role: message.role,
+            content: message.content,
+            citations: message.citations,
+            modelUsed: isLatestAssistant ? response.modelUsed : prior?.modelUsed,
+            guardrailBlocked: isLatestAssistant
+              ? Boolean(response.guardrailApplied?.blocked)
+              : prior?.guardrailBlocked,
+            traceId: isLatestAssistant ? response.traceId : prior?.traceId,
+            feedback: isLatestAssistant ? undefined : prior?.feedback
+          };
+        });
+      });
       scrollToBottom();
     },
     onError: (err) => {
@@ -231,7 +265,18 @@ export function ChatPage() {
               </div>
             ) : (
               messages.map((message, index) => (
-                <MessageBubble key={index} message={message} />
+                <MessageBubble
+                  key={index}
+                  message={message}
+                  sessionId={sessionId}
+                  onFeedback={(feedback) => {
+                    setMessages((current) =>
+                      current.map((item, itemIndex) =>
+                        itemIndex === index ? { ...item, feedback } : item
+                      )
+                    );
+                  }}
+                />
               ))
             )}
             {mutation.isPending && (
@@ -326,8 +371,35 @@ export function ChatPage() {
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({
+  message,
+  sessionId,
+  onFeedback
+}: {
+  message: ChatMessage;
+  sessionId?: string;
+  onFeedback: (feedback: 'up' | 'down') => void;
+}) {
   const isUser = message.role === 'user';
+  const [pending, setPending] = useState(false);
+
+  const submitFeedback = async (value: 'up' | 'down') => {
+    if (!message.traceId || message.feedback || pending) return;
+    setPending(true);
+    try {
+      await api.submitFeedback({
+        traceId: message.traceId,
+        score: value === 'up' ? 1 : 0,
+        sessionId
+      });
+      onFeedback(value);
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to submit feedback');
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <div className={cn('flex gap-3', isUser && 'flex-row-reverse')}>
       <div
@@ -349,11 +421,47 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         >
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
-        {!isUser && message.modelUsed && (
-          <p className="text-[11px] text-muted-foreground">
-            via {message.modelUsed}
-            {message.guardrailBlocked ? ' · blocked by guard rail' : ''}
-          </p>
+        {!isUser && (message.modelUsed || message.traceId) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {message.modelUsed && (
+              <p className="text-[11px] text-muted-foreground">
+                via {message.modelUsed}
+                {message.guardrailBlocked ? ' · blocked by guard rail' : ''}
+              </p>
+            )}
+            {message.traceId && (
+              <div className="flex items-center gap-0.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'h-7 w-7 text-muted-foreground',
+                    message.feedback === 'up' && 'text-foreground'
+                  )}
+                  disabled={Boolean(message.feedback) || pending}
+                  aria-label="Thumbs up"
+                  onClick={() => void submitFeedback('up')}
+                >
+                  <ThumbsUp className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'h-7 w-7 text-muted-foreground',
+                    message.feedback === 'down' && 'text-foreground'
+                  )}
+                  disabled={Boolean(message.feedback) || pending}
+                  aria-label="Thumbs down"
+                  onClick={() => void submitFeedback('down')}
+                >
+                  <ThumbsDown className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
         )}
         {message.citations && message.citations.length > 0 && (
           <div className="flex flex-wrap gap-1.5">

@@ -31,7 +31,8 @@ export const chatResponseSchema = z.object({
   confidence: z.number().min(0).max(1),
   modelUsed: z.string(),
   messages: z.array(chatMessageSchema),
-  guardrailApplied: guardrailAppliedSchema.optional()
+  guardrailApplied: guardrailAppliedSchema.optional(),
+  traceId: z.string().optional()
 });
 
 export const sessionSchema = z.object({

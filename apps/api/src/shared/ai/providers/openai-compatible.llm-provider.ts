@@ -61,13 +61,26 @@ export class OpenAiCompatibleLlmProvider implements LlmProvider {
 
       const data = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+        };
       };
       const content = data.choices?.[0]?.message?.content;
       if (typeof content !== 'string' || !content.trim()) {
         throw new Error(`OpenAI-compatible response for model "${model}" was empty`);
       }
 
-      return { content: content.trim(), modelUsed: model, provider: this.id };
+      const usage = data.usage
+        ? {
+            promptTokens: data.usage.prompt_tokens,
+            completionTokens: data.usage.completion_tokens,
+            totalTokens: data.usage.total_tokens
+          }
+        : undefined;
+
+      return { content: content.trim(), modelUsed: model, provider: this.id, usage };
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(`OpenAI-compatible request timed out after ${this.timeoutMs}ms`);

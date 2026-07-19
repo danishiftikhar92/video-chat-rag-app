@@ -65,7 +65,35 @@ export class LlmGateway {
     if (!provider) {
       throw new BadRequestException(`No provider registered for model "${model}"`);
     }
-    return provider.chat(messages, { ...options, model });
+
+    const generation = options?.observability?.startGeneration({
+      name: 'llm_call',
+      model,
+      input: messages,
+      metadata: { provider: provider.id, temperature: options?.temperature }
+    });
+
+    const started = Date.now();
+    try {
+      const result = await provider.chat(messages, { ...options, model });
+      generation?.end({
+        output: result.content,
+        usage: result.usage,
+        metadata: {
+          provider: result.provider,
+          modelUsed: result.modelUsed,
+          latencyMs: Date.now() - started
+        }
+      });
+      return result;
+    } catch (error) {
+      generation?.end({
+        level: 'ERROR',
+        statusMessage: error instanceof Error ? error.message : String(error),
+        metadata: { latencyMs: Date.now() - started }
+      });
+      throw error;
+    }
   }
 
   async summarize(input: string): Promise<string> {

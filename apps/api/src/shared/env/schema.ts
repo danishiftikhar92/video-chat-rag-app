@@ -48,18 +48,37 @@ export const appEnvSchema = z
     MAX_UPLOAD_SIZE_MB: z.string().default('512'),
     TYPEORM_SYNC: z.string().default('false'),
     INGESTION_RATE_LIMIT: z.string().default('10'),
-    CHAT_RATE_LIMIT: z.string().default('60')
+    CHAT_RATE_LIMIT: z.string().default('60'),
+    LANGFUSE_PUBLIC_KEY: z.string().default(''),
+    LANGFUSE_SECRET_KEY: z.string().default(''),
+    LANGFUSE_BASE_URL: z.string().default(''),
+    LANGFUSE_ENABLED: z.string().default(''),
+    OBSERVABILITY_ENVIRONMENT: z.string().default('')
   })
   .transform((env) => {
     const available = parseCsv(env.LLM_AVAILABLE_MODELS, DEFAULT_CHAT_MODELS);
     const openAiModels = parseCsv(env.LLM_OPENAI_MODELS, '');
     const defaultModel = env.LLM_DEFAULT_MODEL?.trim() || env.OLLAMA_CHAT_MODEL || available[0];
+    const hasLangfuseKeys =
+      Boolean(env.LANGFUSE_PUBLIC_KEY.trim()) && Boolean(env.LANGFUSE_SECRET_KEY.trim());
+    const langfuseEnabledFlag = env.LANGFUSE_ENABLED.trim().toLowerCase();
+    const langfuseEnabled =
+      langfuseEnabledFlag === 'false'
+        ? false
+        : langfuseEnabledFlag === 'true'
+          ? hasLangfuseKeys
+          : hasLangfuseKeys;
+    const observabilityEnvironment =
+      env.OBSERVABILITY_ENVIRONMENT.trim() ||
+      (env.NODE_ENV === 'production' ? 'prod' : env.NODE_ENV === 'test' ? 'test' : 'development');
     return {
       ...env,
       LLM_AVAILABLE_MODELS: available.length > 0 ? available : parseCsv(DEFAULT_CHAT_MODELS),
       LLM_OPENAI_MODELS: openAiModels,
       LLM_DEFAULT_MODEL: defaultModel,
-      OLLAMA_CHAT_MODEL: defaultModel
+      OLLAMA_CHAT_MODEL: defaultModel,
+      LANGFUSE_ENABLED: langfuseEnabled,
+      OBSERVABILITY_ENVIRONMENT: observabilityEnvironment
     };
   })
   .superRefine((env, ctx) => {

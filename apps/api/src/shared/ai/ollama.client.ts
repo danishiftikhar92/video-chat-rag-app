@@ -85,9 +85,17 @@ export class OllamaClient {
   async chatMessages(
     messages: Array<{ role: string; content: string }>,
     options?: { temperature?: number; model?: string }
-  ): Promise<string> {
+  ): Promise<{
+    content: string;
+    usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
+  }> {
     const model = options?.model?.trim() || this.chatModel;
-    const data = await this.postJson<{ message?: { content?: string }; response?: string }>('/api/chat', {
+    const data = await this.postJson<{
+      message?: { content?: string };
+      response?: string;
+      prompt_eval_count?: number;
+      eval_count?: number;
+    }>('/api/chat', {
       model,
       stream: false,
       options: {
@@ -103,7 +111,22 @@ export class OllamaClient {
       );
     }
 
-    return content.trim();
+    const promptTokens =
+      typeof data.prompt_eval_count === 'number' ? data.prompt_eval_count : undefined;
+    const completionTokens = typeof data.eval_count === 'number' ? data.eval_count : undefined;
+    const usage =
+      promptTokens !== undefined || completionTokens !== undefined
+        ? {
+            promptTokens,
+            completionTokens,
+            totalTokens:
+              promptTokens !== undefined || completionTokens !== undefined
+                ? (promptTokens ?? 0) + (completionTokens ?? 0)
+                : undefined
+          }
+        : undefined;
+
+    return { content: content.trim(), usage };
   }
 
   async generate(prompt: string, options?: { temperature?: number; model?: string }): Promise<string> {

@@ -23,13 +23,14 @@ Production-shaped monorepo that ingests video URLs or uploaded media, extracts a
 - Grounded Q&A per video using **pgvector cosine similarity** retrieval over transcript chunks.
 - Answers include **citations** (chunk id + timestamps + snippet).
 - Persistent chat sessions with the ability to **clear history** or delete a session.
+- **Langfuse observability** (optional) for end‑to‑end RAG traces, token usage, and thumbs‑up/down feedback — see [OBSERVABILITY.md](./OBSERVABILITY.md).
 
 ### Web UI
 - **Responsive** layout with a **collapsible sidebar** and mobile navigation drawer.
 - **Dark / light / system** theme (defaults to system, persisted locally).
 - **Video library** with **card and table views**, thumbnails/skeletons, status badges, and **pagination**.
 - **Upload page** with URL and drag‑and‑drop file tabs and real‑time upload progress.
-- **Chat workspace** with video picker, persisted last session, and clear‑history control.
+- **Chat workspace** with video picker, persisted last session, clear‑history control, and **thumbs feedback** on traced answers.
 - **Settings** page for theme, default library view, page size, and API base URL (client‑side preferences).
 
 ## Tech stack
@@ -276,6 +277,7 @@ pnpm db:migrate   # run TypeORM migrations (@video-rag/api)
 | `MAX_VIDEO_DURATION_SECONDS` | Reject sources longer than this |
 | `MAX_DOWNLOAD_SIZE_MB` | Download size cap |
 | `INGESTION_RATE_LIMIT` / `CHAT_RATE_LIMIT` | Per-window request limits |
+| `LANGFUSE_*` / `OBSERVABILITY_ENVIRONMENT` | Optional Langfuse tracing — see [OBSERVABILITY.md](./OBSERVABILITY.md) |
 
 See `.env.example` for the full list.
 
@@ -292,7 +294,8 @@ See `.env.example` for the full list.
 | `DELETE` | `/videos/:id` | Hard delete video + all related data & files |
 | `GET` | `/videos/:id/transcript` | Transcript + segments |
 | `GET` | `/videos/:id/summary` | Summary |
-| `POST` | `/videos/:id/chat` | Grounded Q&A with citations (optional `model`) |
+| `POST` | `/videos/:id/chat` | Grounded Q&A with citations (optional `model`; returns `traceId` when tracing runs) |
+| `POST` | `/observability/feedback` | Thumbs feedback score for a Langfuse `traceId` |
 | `GET` | `/llm/models` | Available chat models + server default |
 | `POST` | `/sessions` | Create a chat session |
 | `GET` | `/sessions/:id` | Get session |

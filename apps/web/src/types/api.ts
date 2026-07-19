@@ -97,6 +97,19 @@ export type ChatResponse = {
   modelUsed: string;
   messages: ChatMessageDto[];
   guardrailApplied?: GuardrailApplied;
+  traceId?: string;
+};
+
+export type FeedbackRequest = {
+  traceId: string;
+  score: 0 | 1;
+  comment?: string;
+  sessionId?: string;
+};
+
+export type FeedbackResponse = {
+  ok: true;
+  traceId: string;
 };
 
 export type GuardRailType = 'prompt_injection' | 'pii_mask' | 'scope' | 'harmful_content';

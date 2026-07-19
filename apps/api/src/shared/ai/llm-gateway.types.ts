@@ -7,9 +7,34 @@ export type LlmMessage = {
   content: string;
 };
 
+export type LlmTokenUsage = {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+};
+
+/** Minimal hooks so LlmGateway can nest generations without importing Nest modules. */
+export type LlmObservabilityHooks = {
+  startGeneration: (params: {
+    name: string;
+    model?: string;
+    input?: unknown;
+    metadata?: Record<string, unknown>;
+  }) => {
+    end: (params?: {
+      output?: unknown;
+      usage?: LlmTokenUsage;
+      metadata?: Record<string, unknown>;
+      level?: 'DEFAULT' | 'ERROR' | 'WARNING' | 'DEBUG';
+      statusMessage?: string;
+    }) => void;
+  };
+};
+
 export type LlmChatOptions = {
   model?: string;
   temperature?: number;
+  observability?: LlmObservabilityHooks;
 };
 
 export type LlmModelInfo = {
@@ -23,6 +48,7 @@ export type LlmChatResult = {
   content: string;
   modelUsed: string;
   provider: LlmProviderId;
+  usage?: LlmTokenUsage;
 };
 
 export interface LlmProvider {

@@ -2,6 +2,8 @@ import type {
   ChatResponse,
   CreateGuardRailInput,
   CreateVideoInput,
+  FeedbackRequest,
+  FeedbackResponse,
   GuardRailDto,
   JobDto,
   LlmModelsResponse,
@@ -153,6 +155,12 @@ export const api = {
   clearSessionHistory: (sessionId: string) =>
     request<{ sessionId: string; cleared: boolean }>(`/sessions/${sessionId}/messages`, {
       method: 'DELETE'
+    }),
+
+  submitFeedback: (input: FeedbackRequest) =>
+    request<FeedbackResponse>('/observability/feedback', {
+      method: 'POST',
+      body: JSON.stringify(input)
     }),
 
   listGuardrails: () => request<GuardRailDto[]>('/guardrails'),

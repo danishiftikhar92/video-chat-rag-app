@@ -9,6 +9,7 @@ import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { LlmModule } from './modules/llm/llm.module';
 import { MediaModule } from './modules/media/media.module';
+import { ObservabilityModule } from './modules/observability/observability.module';
 import { RagModule } from './modules/rag/rag.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { SummaryModule } from './modules/summary/summary.module';
@@ -21,6 +22,7 @@ import { VideoModule } from './modules/video/video.module';
     DatabaseModule,
     QueueModule,
     StorageModule,
+    ObservabilityModule,
     VideoModule,
     JobsModule,
     TranscriptModule,

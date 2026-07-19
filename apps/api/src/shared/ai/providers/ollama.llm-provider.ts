@@ -34,12 +34,12 @@ export class OllamaLlmProvider implements LlmProvider {
       throw new Error(`Model "${model ?? ''}" is not available on the Ollama provider`);
     }
 
-    const content = await this.client.chatMessages(messages, {
+    const result = await this.client.chatMessages(messages, {
       model,
       temperature: options?.temperature
     });
 
-    return { content, modelUsed: model, provider: this.id };
+    return { content: result.content, modelUsed: model, provider: this.id, usage: result.usage };
   }
 }
 
