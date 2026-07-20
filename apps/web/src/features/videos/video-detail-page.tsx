@@ -1,8 +1,6 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'sonner';
-import { FileText, ListChecks, MessageSquare, RefreshCw, Trash2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useParams } from 'react-router-dom';
+import { FileText, ListChecks, MessageSquare } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,14 +8,11 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusBadge } from '@/components/status-badge';
 import { VideoThumbnail } from '@/components/video-thumbnail';
-import { ConfirmDialog } from '@/components/confirm-dialog';
+import { VideoMoreActionsMenu } from '@/features/transcript/video-more-actions-menu';
 import { formatDate, getSourceLabel } from '@/lib/utils';
 
 export function VideoDetailPage() {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ['video', id],
     queryFn: () => api.getVideo(id),
@@ -28,27 +23,10 @@ export function VideoDetailPage() {
         ? 4000
         : false
   });
-
-  const retryMutation = useMutation({
-    mutationFn: () => api.retryVideo(id),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['video', id] }),
-        queryClient.invalidateQueries({ queryKey: ['videos'] })
-      ]);
-      toast.success('Reprocessing started');
-    },
-    onError: (err) => toast.error((err as Error).message)
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: () => api.deleteVideo(id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['videos'] });
-      toast.success('Video deleted');
-      navigate('/videos');
-    },
-    onError: (err) => toast.error((err as Error).message)
+  const { data: transcript } = useQuery({
+    queryKey: ['transcript', id],
+    queryFn: () => api.getTranscript(id),
+    enabled: Boolean(id) && data?.video.status === 'completed'
   });
 
   if (isLoading) {
@@ -115,14 +93,6 @@ export function VideoDetailPage() {
               </p>
             )}
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={() => retryMutation.mutate()}
-                disabled={retryMutation.isPending}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Retry
-              </Button>
               <Button asChild variant="outline">
                 <Link to={`/videos/${id}/transcript`}>
                   <FileText className="h-4 w-4" />
@@ -141,14 +111,12 @@ export function VideoDetailPage() {
                   Chat
                 </Link>
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => setConfirmDelete(true)}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
+              <VideoMoreActionsMenu
+                videoId={id}
+                videoTitle={video.title}
+                transcript={transcript}
+                canExport={video.status === 'completed'}
+              />
             </div>
           </CardContent>
         </Card>
@@ -182,17 +150,6 @@ export function VideoDetailPage() {
           </CardContent>
         </Card>
       </div>
-
-      <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title="Delete this video?"
-        description={`"${video.title}" and all its transcript, summary, chat, and stored files will be permanently removed. This cannot be undone.`}
-        confirmLabel="Delete"
-        destructive
-        loading={deleteMutation.isPending}
-        onConfirm={() => deleteMutation.mutate()}
-      />
     </section>
   );
 }

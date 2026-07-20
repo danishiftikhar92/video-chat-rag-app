@@ -8,38 +8,59 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { VideoMoreActionsMenu } from '@/features/transcript/video-more-actions-menu';
 import { formatTimestamp } from '@/lib/utils';
 
 export function TranscriptPage() {
   const { id = '' } = useParams();
   const [search, setSearch] = useState('');
-  const { data, isLoading, error } = useQuery({
+  const {
+    data: transcript,
+    isLoading,
+    error
+  } = useQuery({
     queryKey: ['transcript', id],
     queryFn: () => api.getTranscript(id),
     enabled: Boolean(id)
   });
+  const { data: videoDetail } = useQuery({
+    queryKey: ['video', id],
+    queryFn: () => api.getVideo(id),
+    enabled: Boolean(id)
+  });
 
   const segments = useMemo(() => {
-    const all = data?.segments ?? [];
+    const all = transcript?.segments ?? [];
     if (!search.trim()) return all;
     const term = search.toLowerCase();
     return all.filter((segment) => segment.text.toLowerCase().includes(term));
-  }, [data?.segments, search]);
+  }, [transcript?.segments, search]);
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button asChild variant="ghost" size="icon">
-          <Link to={`/videos/${id}`} aria-label="Back to video">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">Transcript</h1>
-          <p className="text-sm text-muted-foreground">
-            Timestamped segments for retrieval and citations.
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button asChild variant="ghost" size="icon">
+            <Link to={`/videos/${id}`} aria-label="Back to video">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold tracking-tight">Transcript</h1>
+            <p className="text-sm text-muted-foreground">
+              Timestamped segments for retrieval and citations.
+            </p>
+          </div>
         </div>
+        {videoDetail?.video ? (
+          <VideoMoreActionsMenu
+            videoId={id}
+            videoTitle={videoDetail.video.title}
+            transcript={transcript}
+            canExport={Boolean(transcript?.segments.length || transcript?.rawText.trim())}
+            triggerVariant="ghost"
+          />
+        ) : null}
       </div>
 
       <div className="relative">
