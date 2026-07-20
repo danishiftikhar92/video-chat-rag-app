@@ -1,6 +1,18 @@
 # Video RAG Agent
 
+<p align="center">
+  <img src="docs/video-rag-linkedin-thumbnail.png" alt="Video RAG — Local transcription · pgvector · grounded chat" width="800" />
+</p>
+
 Production-shaped monorepo that ingests video URLs or uploaded media, extracts audio, transcribes speech with **local whisper.cpp**, indexes transcript chunks with **Ollama embeddings + pgvector**, and supports grounded chat via **local Ollama** models — with **no cloud AI keys required**.
+
+## Demo
+
+UI walkthrough of the library, transcript, summary, grounded chat, model switching, upload, and settings:
+
+<video src="docs/video-rag-agent-demo.webm" controls width="100%"></video>
+
+[Download the demo video](./docs/video-rag-agent-demo.webm)
 
 ## What it does
 
